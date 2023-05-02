@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-import MetaTrader5 as mt5
+from mt5linux import Metatrader5
 from datetime import datetime
 from sklearn.impute import SimpleImputer
 from sklearn.ensemble import RandomForestClassifier
@@ -11,10 +11,15 @@ from sklearn.metrics import classification_report
 import time 
 
 # connect to the MetaTrader 5 terminal
+mt5 = Metatrader5(
+    host = 'locahost',
+    port = 8000
+)
+
 mt5.initialize()
 
 # define the forex pair to use
-symbol = 'USDJPY.HKT'
+symbol = 'AUDUSD.HKT'
 
 # define the timeframe
 timeframe = mt5.TIMEFRAME_M15
@@ -163,7 +168,6 @@ def open_position(symbol, order_type, lot):
     result = mt5.order_send(request)
       
     print(f"Position opened with {result}")
-    
 
 while True:
     # get the latest data from MT5
@@ -223,12 +227,9 @@ while True:
     positions = mt5.positions_get(symbol=symbol)
     if len(positions) > 0:
         # close the position if the signal changes to the opposite direction
-        if (positions[0].type == mt5.ORDER_TYPE_BUY and y[-1] < 0):
+        if (positions[0].type == mt5.ORDER_TYPE_BUY and y[-1] < 0) or (positions[0].type == mt5.ORDER_TYPE_SELL and y[-1] > 0):
             print(f"Closing {positions[0].type} position {positions[0].ticket} at {mt5.symbol_info_tick(symbol).bid}")
-            close_position(mt5.ORDER_TYPE_SELL, positions[0].ticket)
-        elif (positions[0].type == mt5.ORDER_TYPE_SELL and y[-1] > 0):
-            print(f"Closing {positions[0].type} position {positions[0].ticket} at {mt5.symbol_info_tick(symbol).bid}")
-            close_position(mt5.ORDER_TYPE_BUY, positions[0].ticket)
+            close_position(positions[0].ticket)
         else:
             print(f"Position {positions[0].type} {positions[0].ticket} open at {positions[0].price_open}")
         # open a new position if there is no current position or the signal changes direction

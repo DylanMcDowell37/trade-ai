@@ -77,9 +77,7 @@ X_test = imputer.transform(X_test)
 y_test = test_df['signal'].values
 y_pred = model.predict(X_test)
 
-import MetaTrader5 as mt5
-
-def close_position(ticket):
+def close_position(order_type, ticket):
     """Close an open position with the specified ticket number."""
     # check if the position exists
     position = mt5.positions_get(ticket=ticket)
@@ -87,13 +85,37 @@ def close_position(ticket):
         print(f"No position found with ticket number {ticket}")
         return
     # close the position
-    result = mt5.order_close(position[0].ticket, position[0].volume)
-    if result.retcode != mt5.TRADE_RETCODE_DONE:
-        print(f"Failed to close position with ticket number {ticket}: {result}")
+    symbol_info = mt5.symbol_info(symbol)
+    point = symbol_info.point
+    ask = symbol_info.ask
+    bid = symbol_info.bid
+    if ask == 0 or bid == 0:
+        print("Ask or bid price is zero")
+        return
+    
+    # set the price depending on the order type
+    if order_type == mt5.ORDER_TYPE_BUY:
+        price = ask
+    elif order_type == mt5.ORDER_TYPE_SELL:
+        price = bid
     else:
-        print(f"Successfully closed position with ticket number {ticket}")
-
-import MetaTrader5 as mt5
+        print("Invalid order type")
+        return
+    request = {
+        "action": mt5.TRADE_ACTION_CLOSE_BY,
+        "symbol": symbol,
+        "volume": 0.01,
+        "type": order_type,
+        "position": ticket,
+        "price": price,
+        "magic": 234000,
+        "comment": "python market close",
+        "type_time": mt5.ORDER_TIME_GTC,
+        "type_filling": mt5.ORDER_FILLING_FOK,
+    }
+    result = mt5.order_send(request)
+    print(f"Position closed with {result}")
+    
 
 def open_position(symbol, order_type, lot):
     """Open a market order position with the specified symbol, type and lot size"""
@@ -130,8 +152,6 @@ def open_position(symbol, order_type, lot):
         "volume": lot,
         "type": order_type,
         "price": price,
-        "sl": 0,
-        "tp": 0,
         "magic": 234000,
         "comment": "python market order",
         "type_time": mt5.ORDER_TIME_GTC,
@@ -140,13 +160,8 @@ def open_position(symbol, order_type, lot):
     
     # send the request and check the result
     result = mt5.order_send(request)
-    if result.retcode != mt5.TRADE_RETCODE_DONE:
-        print(f"Failed to execute order: {result.comment}")
-        mt5.shutdown()
-        return
-    
-    print(f"Position opened with ticket #{result.order}")
-    mt5.shutdown()
+      
+    print(f"Position opened with {result}")
 
 while True:
     # get the latest data from MT5

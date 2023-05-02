@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-import MetaTrader5 as mt5
+from mt5linux import Metatrader5
 from datetime import datetime
 from sklearn.impute import SimpleImputer
 from sklearn.ensemble import RandomForestClassifier
@@ -11,6 +11,11 @@ from sklearn.metrics import classification_report
 import time 
 
 # connect to the MetaTrader 5 terminal
+mt5 = Metatrader5(
+    host = 'locahost',
+    port = 8000
+)
+
 mt5.initialize()
 
 # define the forex pair to use
