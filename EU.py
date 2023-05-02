@@ -213,14 +213,14 @@ while True:
         else:
             print(f"Position {positions[0].type} {positions[0].ticket} open at {positions[0].open_price}")
         # open a new position if there is no current position or the signal changes direction
-        if len(positions) == 0 or (positions[0].type == mt5.ORDER_TYPE_BUY and y[-1] > 0) or (positions[0].type == mt5.ORDER_TYPE_SELL and y[-1] < 0):
-            lot_size = 0.01
-            if y[-1] > 0:
-                print(f"Opening buy position with {lot_size} lots at {mt5.symbol_info_tick(symbol).ask}")
-                open_position(symbol,mt5.ORDER_TYPE_BUY, lot_size)
-            elif y[-1] < 0:
-                print(f"Opening sell position with {lot_size} lots at {mt5.symbol_info_tick(symbol).bid}")
-                open_position(symbol,mt5.ORDER_TYPE_SELL, lot_size)
+    if len(positions) == 0 or (positions[0].type == mt5.ORDER_TYPE_BUY and y[-1] > 0) or (positions[0].type == mt5.ORDER_TYPE_SELL and y[-1] < 0):
+        lot_size = 0.01
+        if y[-1] > 0:
+            print(f"Opening buy position with {lot_size} lots at {mt5.symbol_info_tick(symbol).ask}")
+            open_position(symbol,mt5.ORDER_TYPE_BUY, lot_size)
+        elif y[-1] < 0:
+            print(f"Opening sell position with {lot_size} lots at {mt5.symbol_info_tick(symbol).bid}")
+            open_position(symbol,mt5.ORDER_TYPE_SELL, lot_size)
 
         # wait for the next tick
     time.sleep(60) # adjust this to your desired timeframe. 5 seconds is used as an example. 

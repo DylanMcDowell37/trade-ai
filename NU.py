@@ -77,7 +77,6 @@ X_test = imputer.transform(X_test)
 y_test = test_df['signal'].values
 y_pred = model.predict(X_test)
 
-import MetaTrader5 as mt5
 
 def close_position(ticket):
     """Close an open position with the specified ticket number."""
@@ -88,12 +87,7 @@ def close_position(ticket):
         return
     # close the position
     result = mt5.order_close(position[0].ticket, position[0].volume)
-    if result.retcode != mt5.TRADE_RETCODE_DONE:
-        print(f"Failed to close position with ticket number {ticket}: {result}")
-    else:
-        print(f"Successfully closed position with ticket number {ticket}")
-
-import MetaTrader5 as mt5
+    
 
 def open_position(symbol, order_type, lot):
     """Open a market order position with the specified symbol, type and lot size"""
@@ -130,8 +124,6 @@ def open_position(symbol, order_type, lot):
         "volume": lot,
         "type": order_type,
         "price": price,
-        "sl": 0,
-        "tp": 0,
         "magic": 234000,
         "comment": "python market order",
         "type_time": mt5.ORDER_TIME_GTC,
@@ -140,12 +132,8 @@ def open_position(symbol, order_type, lot):
     
     # send the request and check the result
     result = mt5.order_send(request)
-    if result.retcode != mt5.TRADE_RETCODE_DONE:
-        print(f"Failed to execute order: {result.comment}")
-        mt5.shutdown()
-        return
-    
-    print(f"Position opened with ticket #{result.order}")
+      
+    print(f"Position opened with ticket #{result}")
     mt5.shutdown()
 
 while True:
@@ -154,9 +142,8 @@ while True:
 
     # create a DataFrame from the rates
     df = pd.DataFrame(rates)
-    df['time'] = pd.to_datetime(df['time'], unit='s')
     df = df[['time', 'open', 'high', 'low', 'close', 'tick_volume']]
-
+    df['time'] = pd.to_datetime(df['time'], unit='s')
     # resample the DataFrame to the desired timeframe
     df.set_index('time', inplace=True)
     df = df.resample('15min').agg({'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last', 'tick_volume': 'sum'})
@@ -211,16 +198,16 @@ while True:
             print(f"Closing {positions[0].type} position {positions[0].ticket} at {mt5.symbol_info_tick(symbol).bid}")
             close_position(positions[0].ticket)
         else:
-            print(f"Position {positions[0].type} {positions[0].ticket} open at {positions[0].open_price}")
+            print(f"Position {positions[0].type} {positions[0].ticket} open at {positions[0].price_open}")
         # open a new position if there is no current position or the signal changes direction
-        if len(positions) == 0 or (positions[0].type == mt5.ORDER_TYPE_BUY and y[-1] > 0) or (positions[0].type == mt5.ORDER_TYPE_SELL and y[-1] < 0):
-            lot_size = 0.01
-            if y[-1] > 0:
-                print(f"Opening buy position with {lot_size} lots at {mt5.symbol_info_tick(symbol).ask}")
-                open_position(symbol,mt5.ORDER_TYPE_BUY, lot_size)
-            elif y[-1] < 0:
-                print(f"Opening sell position with {lot_size} lots at {mt5.symbol_info_tick(symbol).bid}")
-                open_position(symbol,mt5.ORDER_TYPE_SELL, lot_size)
+    if len(positions) == 0:
+        lot_size = 0.01
+        if y[-1] > 0:
+            print(f"Opening buy position with {lot_size} lots at {mt5.symbol_info_tick(symbol).ask}")
+            open_position(symbol,mt5.ORDER_TYPE_BUY, lot_size)
+        elif y[-1] < 0:
+            print(f"Opening sell position with {lot_size} lots at {mt5.symbol_info_tick(symbol).bid}")
+            open_position(symbol,mt5.ORDER_TYPE_SELL, lot_size)
 
         # wait for the next tick
     time.sleep(60) # adjust this to your desired timeframe. 5 seconds is used as an example. 
