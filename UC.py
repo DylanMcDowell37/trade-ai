@@ -26,57 +26,6 @@ leading_span_b_period = 52
 displacement = 26
 n_estimators = 100
 
-# get the historical data from MT5
-rates = mt5.copy_rates_from_pos(symbol, timeframe, 0, 10000)
-
-# create a DataFrame from the historical data
-df = pd.DataFrame(rates)
-df['time'] = pd.to_datetime(df['time'], unit='s')
-df.set_index('time', inplace=True)
-
-# calculate the Ichimoku indicators
-df['conversion_line'] = (df['high'].rolling(window=conversion_line_period).max() + df['low'].rolling(window=conversion_line_period).min()) / 2
-df['base_line'] = (df['high'].rolling(window=base_line_period).max() + df['low'].rolling(window=base_line_period).min()) / 2
-df['leading_span_a'] = (df['conversion_line'] + df['base_line']) / 2
-df['leading_span_b'] = (df['high'].rolling(window=leading_span_b_period).max() + df['low'].rolling(window=leading_span_b_period).min()) / 2
-df['leading_span_a'] = df['leading_span_a'].shift(displacement)
-df['leading_span_b'] = df['leading_span_b'].shift(displacement)
-
-# create the trading signals
-df['signal'] = 0
-df.loc[df['conversion_line'] > df['base_line'], 'signal'] = 1
-df.loc[df['conversion_line'] < df['base_line'], 'signal'] = -1
-df['signal'] = df['signal'].shift(1)
-
-# calculate the returns
-df['returns'] = df['close'].pct_change()
-df['strategy_returns'] = df['signal'] * df['returns']
-
-# split the data into training and testing sets
-train_size = int(len(df) * 0.8)
-train_df = df[:train_size]
-test_df = df[train_size:]
-train_df = train_df.dropna(subset=['signal'])
-train_df = train_df.fillna(train_df.mean())
-
-
-# impute missing values in the training set
-imputer = SimpleImputer(missing_values=np.nan, strategy='mean')
-X_train = train_df[['conversion_line', 'base_line', 'leading_span_a', 'leading_span_b']]
-X_train = imputer.fit_transform(X_train)
-y_train = train_df['signal'].values
-
-
-# train the model
-model = RandomForestClassifier(n_estimators=n_estimators, random_state=42)
-model.fit(X_train, y_train)
-
-# evaluate the model on the testing set
-X_test = test_df[['conversion_line', 'base_line', 'leading_span_a', 'leading_span_b']]
-X_test = imputer.transform(X_test)
-y_test = test_df['signal'].values
-y_pred = model.predict(X_test)
-
 def close_position(order_type, ticket):
     """Close an open position with the specified ticket number."""
     # check if the position exists
@@ -102,7 +51,7 @@ def close_position(order_type, ticket):
         print("Invalid order type")
         return
     request = {
-        "action": mt5.TRADE_ACTION_CLOSE_BY,
+        "action": mt5.TRADE_ACTION_DEAL,
         "symbol": symbol,
         "volume": 0.01,
         "type": order_type,
@@ -162,6 +111,7 @@ def open_position(symbol, order_type, lot):
     result = mt5.order_send(request)
       
     print(f"Position opened with {result}")
+    
 
 while True:
     # get the latest data from MT5
@@ -169,9 +119,8 @@ while True:
 
     # create a DataFrame from the rates
     df = pd.DataFrame(rates)
-    df['time'] = pd.to_datetime(df['time'], unit='s')
     df = df[['time', 'open', 'high', 'low', 'close', 'tick_volume']]
-
+    df['time'] = pd.to_datetime(df['time'], unit='s')
     # resample the DataFrame to the desired timeframe
     df.set_index('time', inplace=True)
     df = df.resample('15min').agg({'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last', 'tick_volume': 'sum'})
@@ -199,12 +148,11 @@ while True:
     X = df[['conversion_line', 'base_line', 'leading_span_a', 'leading_span_b']].values
     y = np.where(df['signal'].values > 0, 1, -1)
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False)
+    
 
     # impute missing values in the training set
     imputer = SimpleImputer(missing_values=np.nan, strategy='mean')
-    X_train = train_df[['conversion_line', 'base_line', 'leading_span_a', 'leading_span_b']]
     X_train = imputer.fit_transform(X_train)
-    y_train = train_df['signal'].values
     
     # train the model on the training set
     scaler = StandardScaler()
@@ -222,13 +170,16 @@ while True:
     positions = mt5.positions_get(symbol=symbol)
     if len(positions) > 0:
         # close the position if the signal changes to the opposite direction
-        if (positions[0].type == mt5.ORDER_TYPE_BUY and y[-1] < 0) or (positions[0].type == mt5.ORDER_TYPE_SELL and y[-1] > 0):
+        if (positions[0].type == mt5.ORDER_TYPE_BUY and y[-1] < 0):
             print(f"Closing {positions[0].type} position {positions[0].ticket} at {mt5.symbol_info_tick(symbol).bid}")
-            close_position(positions[0].ticket)
+            close_position(mt5.ORDER_TYPE_SELL, positions[0].ticket)
+        elif (positions[0].type == mt5.ORDER_TYPE_SELL and y[-1] > 0):
+            print(f"Closing {positions[0].type} position {positions[0].ticket} at {mt5.symbol_info_tick(symbol).bid}")
+            close_position(mt5.ORDER_TYPE_BUY, positions[0].ticket)
         else:
-            print(f"Position {positions[0].type} {positions[0].ticket} open at {positions[0].open_price}")
+            print(f"Position {positions[0].type} {positions[0].ticket} open at {positions[0].price_open}")
         # open a new position if there is no current position or the signal changes direction
-    if len(positions) == 0 or (positions[0].type == mt5.ORDER_TYPE_BUY and y[-1] > 0) or (positions[0].type == mt5.ORDER_TYPE_SELL and y[-1] < 0):
+    if len(positions) == 0:
         lot_size = 0.01
         if y[-1] > 0:
             print(f"Opening buy position with {lot_size} lots at {mt5.symbol_info_tick(symbol).ask}")

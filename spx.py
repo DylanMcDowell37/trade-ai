@@ -14,7 +14,7 @@ import time
 mt5.initialize()
 
 # define the forex pair to use
-symbol = 'AUDUSD.HKT'
+symbol = 'SPXUSD.HKT'
 
 # define the timeframe
 timeframe = mt5.TIMEFRAME_M15
