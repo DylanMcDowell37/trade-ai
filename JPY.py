@@ -137,25 +137,28 @@ while True:
         df['leading_span_b'] = df['leading_span_b'].shift(displacement)
 
         # create the trading signals
-        df['signal'] = 0
-        df.loc[df['conversion_line'] > df['base_line'], 'signal'] = 1
-        df.loc[df['conversion_line'] < df['base_line'], 'signal'] = -1
-        df['signal'] = df['signal'].shift(1)
+        df['signal1'] = 0
+        df.loc[df['conversion_line'] > df['base_line'], 'signal1'] = 1
+        df.loc[df['conversion_line'] < df['base_line'], 'signal1'] = -1
+        df['signal1'] = df['signal1'].shift(1)
+        df['signal2'] = 0
+        df.loc[(df['close'] > df['leading_span_a']) & (df['close'] > df['leading_span_b']), 'signal2'] = 1
+        df.loc[(df['close'] < df['leading_span_a']) & (df['close'] < df['leading_span_b']), 'signal2'] = -1
 
         # calculate the returns
         df['returns'] = df['close'].pct_change()
-        df['strategy_returns'] = df['signal'] * df['returns']
-
-        # split the data into training and testing sets
+        df['strategy_returns'] = df['signal1'] * df['returns']
+        print(df)
+        # concatenate the signals and split the data into training and testing sets
         X = df[['conversion_line', 'base_line', 'leading_span_a', 'leading_span_b']].values
-        y = np.where(df['signal'].values > 0, 1, -1)
+        y = np.where(df['signal1'].values > 0, 1, -1)
+        z = np.where(df['signal2'].values > 0, 1, -1)
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False)
 
         # impute missing values in the training set
         imputer = SimpleImputer(missing_values=np.nan, strategy='mean')
         X_train = imputer.fit_transform(X_train)
 
-        
         # train the model on the training set
         scaler = StandardScaler()
         X_train_scaled = scaler.fit_transform(X_train)
@@ -183,10 +186,10 @@ while True:
             # open a new position if there is no current position or the signal changes direction
         if len(positions) == 0:
             lot_size = 0.01
-            if y[-1] > 0:
+            if y[-1] > 0 and z[-1] > 0:
                 print(f"Opening buy position with {lot_size} lots at {mt5.symbol_info_tick(symbol).ask}")
                 #open_position(symbol,mt5.ORDER_TYPE_BUY, lot_size)
-            elif y[-1] < 0:
+            elif y[-1] < 0 and z[-1] < 0:
                 print(f"Opening sell position with {lot_size} lots at {mt5.symbol_info_tick(symbol).bid}")
                 #open_position(symbol,mt5.ORDER_TYPE_SELL, lot_size)
 
